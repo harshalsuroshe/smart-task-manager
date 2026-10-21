@@ -2,6 +2,7 @@ package com.taskmanager.backend.repository;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,15 +30,21 @@ public class TaskRepository {
 
     // Converts each SQL result row into a Java Task object.
     // This mapping is reused by findAll() and findById().
-    private final RowMapper<Task> taskRowMapper = (result, rowNum) ->
-        new Task(
+   // UPDATED: Now reads due_date from MySQL and passes it to the Task constructor
+    private final RowMapper<Task> taskRowMapper = (result, rowNum) -> {
+        java.sql.Date sqlDate = result.getDate("due_date");
+        java.time.LocalDate dueDate = (sqlDate != null) ? sqlDate.toLocalDate() : null;
+        
+        return new Task(
             result.getLong("id"),
             result.getString("title"),
             result.getString("description"),
             TaskStatus.valueOf(result.getString("status")),
             TaskPriority.valueOf(result.getString("priority")),
-            result.getLong("user_id")
+            result.getLong("user_id"),
+            dueDate // New 7th parameter!
         );
+    };
 
     // Retrieves every task from the database.
     public List<Task> findAll() {
@@ -61,8 +68,8 @@ public class TaskRepository {
     // Inserts a new task and retrieves its generated database ID.
     public Task save(Task task) {
         String sql =
-            "INSERT INTO tasks (title, description, status, priority, user_id) " +
-            "VALUES (?, ?, ?, ?, ?)";
+            "INSERT INTO tasks (title, description, status, priority, user_id, due_date) " +
+            "VALUES (?, ?, ?, ?, ?, ?)";
 
              // Keep track of the automatically generated task ID.
             org.springframework.jdbc.support.GeneratedKeyHolder keyHolder =
@@ -86,7 +93,12 @@ public class TaskRepository {
             statement.setString(4, task.getPriority().name());
             statement.setLong(5, task.getUserId()); // Set the ID of the user who owns this task.
         
-
+            // Safely handle null dates
+            if (task.getDueDate() != null) {
+                statement.setDate(6, java.sql.Date.valueOf(task.getDueDate()));
+            } else {
+                statement.setNull(6, Types.DATE);
+            }
             return statement;
         }, keyHolder);
 
@@ -106,22 +118,31 @@ public class TaskRepository {
     }
 
     // Updates an existing task and reports whether a row was changed.
+    // UPDATED: Completely safe SQL update explicitly defining data types
     public boolean update(Task task) {
         String sql =
             "UPDATE tasks SET title = ?, description = ?, " +
-            "status = ?, priority = ? WHERE id = ?";
+            "status = ?, priority = ?, due_date = ? WHERE id = ?";
 
-        // JdbcTemplate binds each value to its corresponding placeholder.
         int rowsUpdated = jdbcTemplate.update(
             sql,
-            task.getTitle(),
-            task.getDescription(),
-            task.getStatus().name(),
-            task.getPriority().name(),
-            task.getUserId()
+            new Object[]{
+                task.getTitle(),
+                task.getDescription(),
+                task.getStatus().name(),
+                task.getPriority().name(),
+                task.getDueDate() != null ? java.sql.Date.valueOf(task.getDueDate()) : null,
+                task.getId()
+            },
+            new int[]{
+                Types.VARCHAR,
+                Types.VARCHAR,
+                Types.VARCHAR,
+                Types.VARCHAR,
+                Types.DATE,       // Explicitly tells MySQL this is a date, even if null!
+                Types.BIGINT
+            }
         );
-
-        // A value greater than zero means a row was updated.
         return rowsUpdated > 0;
     }
 
@@ -168,6 +189,7 @@ public class TaskRepository {
             case "title" -> "title";
             case "status" -> "status";
             case "priority" -> "priority";
+            case "dueDate" -> "due_date";
             case "id" -> "id";
             default -> throw new IllegalArgumentException("Unsupported sort field");
         };

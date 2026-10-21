@@ -1,5 +1,7 @@
 package com.taskmanager.backend.model;
 
+import java.time.LocalDate;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -26,19 +28,24 @@ public class Task {
     @NotNull(message = "Task priority is required")
     private TaskPriority priority;
 
+    //@JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate dueDate;
+
+
     // No-argument constructor used when Spring converts JSON into a Task
     public Task() {
     }
 
     // Constructor used when creating Task objects from database rows
     public Task(Long id, String title, String description,
-                TaskStatus status, TaskPriority priority, Long userId) {
+                TaskStatus status, TaskPriority priority, Long userId, LocalDate dueDate) {
         this.id = id;
         this.title = title;
         this.description = description;
         this.status = status;
         this.priority = priority;
         this.userId = userId;
+        this.dueDate = dueDate;
     }
 
     // Returns the enum representing the task's status
@@ -102,4 +109,13 @@ public class Task {
     public void setUserId(Long userId) {
         this.userId = userId;
     }
+
+    public LocalDate getDueDate() { 
+        return dueDate; 
+    }
+    public void setDueDate(LocalDate dueDate) { 
+        this.dueDate = dueDate; 
+    }
+
+    
 }

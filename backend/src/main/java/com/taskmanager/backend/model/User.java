@@ -11,14 +11,26 @@ public class User {
     // Email uniquely identifies the user
     private String email;
 
-    // Required by frameworks and object mapping
+    // Stores the BCrypt hash, never the original password
+    private String passwordHash;
+
+    // Required for frameworks and object mapping
     public User() {
     }
 
+    // Constructor for existing user data without a password hash
     public User(Long id, String name, String email) {
         this.id = id;
         this.name = name;
         this.email = email;
+    }
+
+    // Constructor that also accepts a password hash
+    public User(Long id, String name, String email, String passwordHash) {
+        this.id = id;
+        this.name = name;
+        this.email = email;
+        this.passwordHash = passwordHash;
     }
 
     public Long getId() {
@@ -43,5 +55,13 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 }

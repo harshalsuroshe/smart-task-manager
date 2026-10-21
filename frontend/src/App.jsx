@@ -1,237 +1,415 @@
-import { useState, useEffect } from 'react';
-import './App.css';
+import { useEffect, useMemo, useState } from "react";
+import "./App.css";
+import Login from "./pages/Login";
+import Sidebar from "./components/Sidebar";
+import Dashboard from "./pages/Dashboard";
 
-// Mock data (replace with API calls later)
-// Status: PENDING, IN_PROGRESS, COMPLETED | Priority: LOW, MEDIUM, HIGH
-
-const NAV_ITEMS = [
-  { name: 'Dashboard', label: 'Dashboard', initial: 'D', color: '#3b82f6' },
-  { name: 'My Tasks', label: 'My Tasks', initial: 'T', color: '#10b981' },
-  { name: 'Projects', label: 'Projects', initial: 'P', color: '#a855f7' },
-  { name: 'Settings', label: 'Settings', initial: 'S', color: '#6b7280' },
-];
-
-const STAT_CARDS = [
-  { label: 'Total Tasks', value: '24', description: 'across all projects' },
-  { label: 'Pending', value: '8', description: 'require attention' },
-  { label: 'In Progress', value: '7', description: 'being worked on' },
-  { label: 'Completed', value: '9', description: 'finished this week' },
-];
-
-const RECENT_TASKS = [
-  { id: 1, title: 'Design homepage mockup', priority: 'High', status: 'In Progress', dueDate: 'Oct 20, 2026' },
-  { id: 2, title: 'Setup project repository', priority: 'Medium', status: 'Completed', dueDate: 'Oct 15, 2026' },
-  { id: 3, title: 'Implement user authentication', priority: 'High', status: 'Pending', dueDate: 'Oct 25, 2026' },
-  { id: 4, title: 'Write API documentation', priority: 'Low', status: 'Pending', dueDate: 'Oct 30, 2026' },
-  { id: 5, title: 'Fix navigation bug', priority: 'Medium', status: 'In Progress', dueDate: 'Oct 21, 2026' },
-];
+import BoardView from "./pages/BoardView";
+import { loginUser, registerUser, fetchTasks, createNewTask, updateTaskById, deleteTaskById } from "./services/api";
 
 
-const STATUS_COLORS = {
-  Pending: 'var(--status-pending)',
-  PENDING: 'var(--status-pending)',
 
-  'In Progress': 'var(--status-progress)',
-  IN_PROGRESS: 'var(--status-progress)',
+//const API_URL = "http://localhost:8080";
 
-  Completed: 'var(--status-completed)',
-  COMPLETED: 'var(--status-completed)',
-};
-
-const PRIORITY_COLORS = {
-  High: 'var(--priority-high)',
-  HIGH: 'var(--priority-high)',
-
-  Medium: 'var(--priority-medium)',
-  MEDIUM: 'var(--priority-medium)',
-
-  Low: 'var(--priority-low)',
-  LOW: 'var(--priority-low)',
-};
-
-
-function Sidebar({ activeItem, onSelect }) {
-  return (
-    <aside className="sidebar" aria-label="Main navigation">
-      <div className="sidebar-brand"><span className="sidebar-brand-mark">T</span><span className="sidebar-brand-name">TaskFlow</span></div>
-      <nav className="sidebar-nav">
-        {NAV_ITEMS.map((item) => {
-          const isActive = activeItem === item.name;
-          return (
-            <button key={item.name} type="button" className={`sidebar-item ${isActive ? 'sidebar-item--active' : ''}`} onClick={() => onSelect(item.name)} aria-pressed={isActive}>
-              <span className="sidebar-item-icon" style={{ backgroundColor: item.color }}>{item.initial}</span>
-              <span className="sidebar-item-text">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-    </aside>
-  );
-}
-
-function StatCard({ label, value, description }) {
-  return (
-    <div className="stat-card"><span className="stat-card-label">{label}</span><span className="stat-card-value">{value}</span><span className="stat-card-desc">{description}</span></div>
-  );
-}
-
-function StatusBadge({ status }) {
-  const label = {
-    PENDING: 'Pending',
-    IN_PROGRESS: 'In Progress',
-    COMPLETED: 'Completed',
-  }[status] ?? status;
-
-  return (
-    <span
-      className="badge badge--status"
-      style={{ color: STATUS_COLORS[status] }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function PriorityBadge({ priority }) {
-  const label = {
-    HIGH: 'High',
-    MEDIUM: 'Medium',
-    LOW: 'Low',
-  }[priority] ?? priority;
-
-  return (
-    <span
-      className="badge badge--priority"
-      style={{ color: PRIORITY_COLORS[priority] }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function TaskRow({ task }) {
-  return (
-    <tr className="task-row">
-      <td className="task-title">{task.title}</td>
-      <td className="task-priority"><PriorityBadge priority={task.priority} /></td>
-      <td className="task-status"><StatusBadge status={task.status} /></td>
-      <td className="task-due">{task.dueDate}</td>
-    </tr>
-  );
-}
-
-function AddTaskButton({ onClick }) {
-  return (
-    <button
-      type="button"
-      className="btn btn--primary btn--add"
-      onClick={onClick}
-    >
-      <span aria-hidden="true">+</span> Add Task
-    </button>
-  );
-}
-
-function RecentTasks({ tasks }) {
-  return (
-    <section className="card recent-tasks-card" aria-label="Recent tasks">
-      <div className="card-header"><h2 className="card-title">Recent Tasks</h2></div>
-      <div className="table-wrap">
-        <table className="tasks-table">
-          <thead>
-            <tr><th scope="col">Title</th><th scope="col">Priority</th><th scope="col">Status</th><th scope="col" className="tasks-table-cell--due">Due Date</th></tr>
-          </thead>
-          <tbody>{tasks.map((task) => <TaskRow key={task.id} task={task} />)}</tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
 
 function App() {
-  const [activeItem, setActiveItem] = useState('Dashboard');
-  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [activePage, setActivePage] = useState("Dashboard");
   const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [apiMessage, setApiMessage] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [priorityFilter, setPriorityFilter] = useState("ALL");
+  const [darkMode, setDarkMode] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
+  // --- New Task Form State ---
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDescription, setNewTaskDescription] = useState("");
+  const [newTaskPriority, setNewTaskPriority] = useState("MEDIUM");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newTaskDueDate, setNewTaskDueDate] = useState("");
 
-  const [backendMessage, setBackendMessage] = useState("Connecting...");
+  // Read the JWT saved by a previous successful login.
+  const [token, setToken] = useState(
+    () => localStorage.getItem("taskflow_token")
+  );
+  // Store the login form values.
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
+  
+  // Store the signed-in user's basic profile.
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = localStorage.getItem("taskflow_user");
+    try {
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
 
+  // Fetch tasks from Spring Boot.
+// --- LOAD TASKS ---
   useEffect(() => {
-    fetch("http://localhost:8080/api/health")
-      .then(response => {
-        if (!response.ok) {
-          throw new Error("Backend request failed");
-        }
-        return response.json();
-      })
-      .then(data => {
-        setBackendMessage(
-          data.application + " backend status: " + data.status
-        );
-      })
-      .catch(error => {
-        console.error("Backend connection error:", error);
-        setBackendMessage("Could not connect to backend");
-      });
-  }, []);
-
-
-  useEffect(() => {
-    fetch("http://localhost:8080/api/tasks")
-      .then(response => {
-        if (!response.ok) {
-          throw new Error("Failed to fetch tasks");
-        }
-        return response.json();
-      })
-      .then(data => {
+    if (!token) return;
+    const controller = new AbortController();
+    
+    async function loadTasks() {
+      setLoading(true);
+      try {
+        const data = await fetchTasks(token, controller.signal);
         setTasks(data);
-      })
-      .catch(error => {
-        console.error("Error fetching tasks:", error);
+      } catch (error) {
+        if (error.message === "UNAUTHORIZED") {
+          handleLogout();
+        } else if (error.name !== "AbortError") {
+          console.error("Load error:", error);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+    
+    loadTasks();
+    return () => controller.abort();
+  }, [token]);
+
+  // Calculate statistics from real API data instead of hardcoded numbers.
+  const stats = useMemo(() => {
+    const pending = tasks.filter((task) => task.status === "PENDING").length;
+    const inProgress = tasks.filter((task) => task.status === "IN_PROGRESS").length;
+    const completed = tasks.filter((task) => task.status === "COMPLETED").length;
+    return [
+      {
+        label: "Total tasks",
+        value: tasks.length,
+        description: "Across your task list",
+        icon: "▤",
+        tone: "purple",
+      },
+      {
+        label: "Pending",
+        value: pending,
+        description: "Waiting to be started",
+        icon: "◷",
+        tone: "amber",
+      },
+      {
+        label: "In progress",
+        value: inProgress,
+        description: "Currently underway",
+        icon: "↗",
+        tone: "blue",
+      },
+      {
+        label: "Completed",
+        value: completed,
+        description: tasks.length
+          ? `${Math.round((completed / tasks.length) * 100)}% of all tasks`
+          : "No tasks completed yet",
+        icon: "✓",
+        tone: "green",
+      },
+    ];
+  }, [tasks]);
+
+  // Search and filters run in the frontend against the tasks we have loaded.
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchesSearch =
+        `${task.title || ""} ${task.description || ""}`
+          .toLowerCase()
+          .includes(search.toLowerCase());
+      const matchesStatus =
+        statusFilter === "ALL" || task.status === statusFilter;
+      const matchesPriority =
+        priorityFilter === "ALL" || task.priority === priorityFilter;
+      return matchesSearch && matchesStatus && matchesPriority;
+    });
+  }, [tasks, search, statusFilter, priorityFilter]);
+
+  // Authenticate against the existing Spring Boot login endpoint.
+// --- LOGIN ---
+  async function handleLogin(event) {
+    event.preventDefault();
+    setLoggingIn(true);
+    setLoginError("");
+    try {
+      const data = await loginUser(email.trim(), password);
+      localStorage.setItem("taskflow_token", data.token);
+      localStorage.setItem("taskflow_user", JSON.stringify(data.user));
+      setCurrentUser(data.user);
+      setToken(data.token);
+    } catch (error) {
+      setLoginError(error.message);
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+
+  // --- REGISTER ---
+async function handleRegister(event, name) {
+  event.preventDefault();
+  setLoggingIn(true);
+  setLoginError("");
+  try {
+    const data = await registerUser(name, email.trim(), password);
+
+    // If your backend auto-logs the user in and returns a token:
+    if (data.token) {
+      localStorage.setItem("taskflow_token", data.token);
+      localStorage.setItem("taskflow_user", JSON.stringify(data.user));
+      setCurrentUser(data.user);
+      setToken(data.token);
+    } else {
+      // If it just creates the account, you might need to tell them to log in now
+      setLoginError("Account created! Please toggle to Log In to continue.");
+    }
+  } catch (error) {
+    setLoginError(error.message);
+  } finally {
+    setLoggingIn(false);
+  }
+}
+
+
+  // Handle new task submission
+async function handleCreateTask(event) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const createdTask = await createNewTask(token, {
+        title: newTaskTitle.trim(),
+        description: newTaskDescription.trim(),
+        status: "PENDING",
+        priority: newTaskPriority,
+        dueDate: newTaskDueDate || null,
       });
-  }, []);
+      setTasks((prev) => [...prev, createdTask]);
+      setNewTaskTitle(""); 
+      setNewTaskDescription("");
+      setNewTaskDueDate("");
+      setIsCreatingTask(false);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
+  // Handle changing a task's status
+// --- UPDATE TASK STATUS ---
+  async function handleStatusChange(taskId, currentTask, newStatus) {
+    try {
+      const updatedTask = await updateTaskById(token, taskId, { ...currentTask, status: newStatus });
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? updatedTask : t)));
+    } catch (error) {
+      alert(error.message);
+    }
+  }
 
+  // --- EDIT TASK ---
+  async function handleEditTask(taskId, updatedTaskData) {
+    try {
+      const updatedTask = await updateTaskById(token, taskId, updatedTaskData);
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? updatedTask : t)));
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  // Handle deleting a task
+// --- DELETE TASK ---
+  async function handleDeleteTask(taskId) {
+    if (!window.confirm("Are you sure you want to delete this task?")) return;
+    try {
+      await deleteTaskById(token, taskId);
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+  
+  // Clear local authentication and return to the login screen.
+  function handleLogout() {
+    localStorage.removeItem("taskflow_token");
+    localStorage.removeItem("taskflow_user");
+    setToken(null);
+    setCurrentUser(null);
+    setTasks([]);
+    setPassword("");
+    setLoginError("");
+    setApiMessage("");
+    setShowProfile(false);
+  }
+
+  // Show the login screen until the user has a saved JWT.
+// Show the login screen until the user has a saved JWT.
+  if (!token) {
+    return (
+      <div className={`app-shell ${darkMode ? "dark-theme" : ""}`}>
+        <Login 
+          email={email}
+          setEmail={setEmail}
+          password={password}
+          setPassword={setPassword}
+          handleLogin={handleLogin}
+          handleRegister={handleRegister}
+          loggingIn={loggingIn}
+          loginError={loginError}
+        />
+      </div>
+    );
+  }
+
+  const greeting = new Date().getHours() < 12
+    ? "Good morning"
+    : new Date().getHours() < 18
+      ? "Good afternoon"
+      : "Good evening";
 
   return (
-    <div className="app">
-      <Sidebar activeItem={activeItem} onSelect={setActiveItem} />
+    <div className={`app-shell ${darkMode ? "dark-theme" : ""}`}>
+      <Sidebar
+        activePage={activePage}
+        onNavigate={setActivePage}
+        onLogout={handleLogout}
+      />
       <main className="main-content">
-        <header className="dashboard-header">
-          <div className="dashboard-greeting">
-            <h1 className="dashboard-title">Good morning!</h1>
-            <p className="dashboard-subtitle">Here is a quick look at your tasks for today.</p>
-            <p>{backendMessage}</p>
+        <header className="topbar">
+          <div className="breadcrumb">
+            <span>Workspace</span>
+            <span className="breadcrumb-separator">/</span>
+            <strong>{activePage}</strong>
           </div>
-          <AddTaskButton onClick={() => setIsAddTaskOpen(true)} />
+          <div className="topbar-actions">
+            <button
+              className="icon-button theme-button"
+              type="button"
+              title="Toggle color theme"
+              aria-label="Toggle color theme"
+              onClick={() => setDarkMode((current) => !current)}
+            >
+              {darkMode ? "☀" : "☾"}
+            </button>
+            <div className="menu-anchor">
+              <button
+                className="icon-button notification-button"
+                type="button"
+                aria-label="Notifications"
+                onClick={() => {
+                  setShowNotifications((value) => !value);
+                  setShowProfile(false);
+                }}
+              >
+                ♧
+                <span className="notification-dot" />
+              </button>
+              {showNotifications && (
+                <div className="floating-menu">
+                  <strong>Notifications</strong>
+                  <p>You’re all caught up.</p>
+                  <small>Task reminders can be added in a future step.</small>
+                </div>
+              )}
+            </div>
+            <div className="menu-anchor">
+              <button
+                className="profile-button"
+                type="button"
+                onClick={() => {
+                  setShowProfile((value) => !value);
+                  setShowNotifications(false);
+                }}
+              >
+                <span className="profile-avatar">H</span>
+                <span className="profile-text">
+                <strong>{currentUser?.name || "My Account"}</strong>
+                <small>{currentUser?.email || "Workspace member"}</small>
+                </span>
+                <span>⌄</span>
+              </button>
+              {showProfile && (
+                <div className="floating-menu profile-menu">
+                  <strong>My Account</strong>
+                  <button type="button" onClick={() => setActivePage("Settings")}>
+                    Account settings
+                  </button>
+                  <button type="button" onClick={handleLogout}>
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </header>
-        {isAddTaskOpen && (
-      <section className="card add-task-form">
-        <h2>Create a Task</h2>
 
-        <label htmlFor="taskTitle">Task title</label>
-        <input
-          id="taskTitle"
-          type="text"
-          placeholder="Enter task title"
-        />
-
-        <button
-          type="button"
-          onClick={() => setIsAddTaskOpen(false)}
-        >
-          Close
-        </button>
-      </section>
-    )}
-        <section className="stats-section">
-          <div className="stats-grid">{STAT_CARDS.map((card) => <StatCard key={card.label} {...card} />)}</div>
-        </section>
-
+        {activePage === "Dashboard" || activePage === "My Tasks" ? (
+          <Dashboard 
+            // ... all your existing Dashboard props ...
+            activePage={activePage}
+            greeting={greeting}
+            isCreatingTask={isCreatingTask}
+            setIsCreatingTask={setIsCreatingTask}
+            handleCreateTask={handleCreateTask}
+            newTaskTitle={newTaskTitle}
+            setNewTaskTitle={setNewTaskTitle}
+            newTaskDescription={newTaskDescription}
+            setNewTaskDescription={setNewTaskDescription}
+            newTaskPriority={newTaskPriority}
+            setNewTaskPriority={setNewTaskPriority}
+            newTaskDueDate={newTaskDueDate}
+            setNewTaskDueDate={setNewTaskDueDate}
+            isSubmitting={isSubmitting}
+            apiMessage={apiMessage}
+            stats={stats}
+            tasks={tasks}
+            filteredTasks={filteredTasks}
+            loading={loading}
+            search={search}
+            setSearch={setSearch}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            priorityFilter={priorityFilter}
+            setPriorityFilter={setPriorityFilter}
+            handleStatusChange={handleStatusChange}
+            handleDeleteTask={handleDeleteTask}
+            handleEditTask={handleEditTask}
+          />
+        ) : activePage === "Board View" ? (
+          <BoardView 
+            tasks={tasks} 
+            handleStatusChange={handleStatusChange} 
+            handleDeleteTask={handleDeleteTask} 
+          />
+        ) : (
+          <section className="coming-soon-panel">
+            <div className="coming-soon-icon">✦</div>
+            <p className="eyebrow">TASKFLOW WORKSPACE</p>
+            <h1>{activePage}</h1>
+            <p>
+              This section is part of our roadmap. We’ll build its interface
+              and connect the required backend features in a later stage.
+            </p>
+            <span className="subtle-tag">Coming soon</span>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setActivePage("Dashboard")}
+            >
+              ← Back to dashboard
+            </button>
+          </section>
+        )}
         
-
-        <RecentTasks tasks={tasks} />
+        <footer className="app-footer">
+          <span>TaskFlow</span>
+          <span>Plan your work. Make progress.</span>
+        </footer>
       </main>
     </div>
   );

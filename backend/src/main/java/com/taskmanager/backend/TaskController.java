@@ -1,9 +1,10 @@
 package com.taskmanager.backend;
 
+import java.security.Principal;
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity; // Enables validation of incoming request data
+import org.springframework.http.HttpStatus; // Enables validation of incoming request data
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,10 +36,14 @@ public class TaskController {
         this.taskService = taskService;
     }
 
-    // GET /api/tasks - retrieve all saved tasks
+    // GET /api/tasks - retrieve ONLY the authenticated user's tasks
     @GetMapping
-    public List<Task> getTasks() throws Exception {
-        return taskService.getAllTasks();
+    public List<Task> getTasks(Principal principal) throws Exception {
+        // The JWT filter stores the user's ID in the Principal's name
+        Long userId = Long.valueOf(principal.getName());
+        
+        // Delegate to the service layer to fetch only this user's tasks
+        return taskService.getTasksByUserId(userId);
     }
 
     // GET /api/tasks/{id} - retrieves one task using its ID from the URL
@@ -51,16 +56,20 @@ public class TaskController {
         return taskService.getTaskById(id);
     }
 
-    // POST /api/tasks - creates a new task
+    // POST /api/tasks - creates a new task assigned to the logged-in user
     @PostMapping
     public ResponseEntity<Task> createTask(
-            // Converts the incoming JSON into a Task object
-            // and validates its fields before calling the method
-            @Valid @RequestBody Task task) throws Exception {
-
-        // Ask the service layer to save the task
-        Task createdTask = taskService.createTask(task);
-
+            // Converts the incoming JSON into a Task object and validates it
+            @Valid @RequestBody Task task,
+            // Injects the authenticated user details from the JWT filter
+            Principal principal) throws Exception {
+        
+        // Extract the user's ID from the Principal's name
+        Long userId = Long.valueOf(principal.getName());
+        
+        // Delegate to the user-specific creation method in the service layer
+        Task createdTask = taskService.createTaskForUser(userId, task);
+        
         // Return HTTP 201 Created and the saved task as JSON
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -68,36 +77,29 @@ public class TaskController {
     }
 
     // PUT /api/tasks/{id} - replaces the editable fields of a task
+// PUT /api/tasks/{id} - replaces the editable fields of a task securely
     @PutMapping("/{id}")
     public ResponseEntity<Task> updateTask(
-            // Read the task ID from the URL
             @PathVariable Long id,
-
-            // Convert the JSON body into a Task and validate its fields
-            @Valid @RequestBody Task task) throws Exception {
-
-        // Delegate update rules and database work to the service
-        Task updatedTask = taskService.updateTask(id, task);
-
-        // Return HTTP 200 OK with the updated task
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(updatedTask);
+            @Valid @RequestBody Task task,
+            Principal principal) throws Exception {
+        
+        Long userId = Long.valueOf(principal.getName());
+        Task updatedTask = taskService.updateTask(id, task, userId);
+        
+        return ResponseEntity.status(HttpStatus.OK).body(updatedTask);
     }
 
-    // DELETE /api/tasks/{id} - deletes a task by ID
+    // DELETE /api/tasks/{id} - deletes a task by ID securely
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTask(
-            // Read the task ID from the URL
-            @PathVariable Long id) throws Exception {
-
-        // Ask the service to verify and delete the task
-        taskService.deleteTask(id);
-
-        // Return HTTP 204 No Content because deletion succeeded
-        return ResponseEntity
-                .status(HttpStatus.NO_CONTENT)
-                .build();
+            @PathVariable Long id,
+            Principal principal) throws Exception {
+        
+        Long userId = Long.valueOf(principal.getName());
+        taskService.deleteTask(id, userId);
+        
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     // Searches tasks using optional filters, sorting, and pagination.

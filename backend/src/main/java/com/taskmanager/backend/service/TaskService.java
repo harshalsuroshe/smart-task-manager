@@ -96,71 +96,59 @@ public class TaskService {
 
 
     // Replaces the editable fields of an existing task
-    @Transactional // Updating a task, including the existence check, is one transaction.
-    public Task updateTask(Long id, Task request) throws Exception {
-        // Verify that the task exists before attempting the update
+// Replaces the editable fields of an existing task securely
+    @Transactional
+    public Task updateTask(Long id, Task request, Long userId) throws Exception {
         Task existingTask = taskRepository.findById(id);
-
-        // Report a missing task using our existing custom exception
+        
         if (existingTask == null) {
-            throw new TaskNotFoundException(
-                    "Task with ID " + id + " was not found"
-            );
+            throw new TaskNotFoundException("Task with ID " + id + " was not found");
+        }
+        
+        // SECURITY CHECK: Ensure the logged-in user owns this task
+        if (!existingTask.getUserId().equals(userId)) {
+            throw new SecurityException("You do not have permission to modify this task");
         }
 
-        // Build the updated task using the ID from the URL
-        // so the request body cannot change which row is updated
         Task updatedTask = new Task(
                 id,
                 request.getTitle(),
                 request.getDescription(),
                 request.getStatus(),
                 request.getPriority(),
-                existingTask.getUserId()    // Preserve the current owner
+                existingTask.getUserId(),
+                request.getDueDate()
         );
 
-        // Ask the repository to update the database row
         boolean updated = taskRepository.update(updatedTask);
-
-        // Protect against an unexpected case where the row disappears
         if (!updated) {
-            throw new IllegalStateException(
-                    "Task could not be updated"
-            );
+            throw new IllegalStateException("Task could not be updated");
         }
 
-        // Record the successful operation using the existing logger
-        logger.info("Task with ID {} updated successfully", id);
-
-        // Return the updated task to the controller
+        logger.info("Task with ID {} updated successfully by user {}", id, userId);
         return updatedTask;
     }
 
-    // Deletes an existing task
-    @Transactional  // Deleting a task, including the existence check, is one transaction.
-    public void deleteTask(Long id) throws Exception {
-        // Verify that the requested task exists
+    // Deletes an existing task securely
+    @Transactional
+    public void deleteTask(Long id, Long userId) throws Exception {
         Task existingTask = taskRepository.findById(id);
-
-        // Return 404 through the global exception handler if missing
+        
         if (existingTask == null) {
-            throw new TaskNotFoundException(
-                    "Task with ID " + id + " was not found"
-            );
+            throw new TaskNotFoundException("Task with ID " + id + " was not found");
         }
 
-        // Delete the row from MySQL
+        // SECURITY CHECK: Ensure the logged-in user owns this task
+        if (!existingTask.getUserId().equals(userId)) {
+            throw new SecurityException("You do not have permission to delete this task");
+        }
+
         boolean deleted = taskRepository.deleteById(id);
-
-        // Report an unexpected failure rather than claiming success
         if (!deleted) {
-            throw new IllegalStateException(
-                    "Task could not be deleted"
-            );
+            throw new IllegalStateException("Task could not be deleted");
         }
 
-        // Record the successful operation
-        logger.info("Task with ID {} deleted successfully", id);
+        logger.info("Task with ID {} deleted successfully by user {}", id, userId);
     }
 
     // Validates the request and coordinates paginated task retrieval.
