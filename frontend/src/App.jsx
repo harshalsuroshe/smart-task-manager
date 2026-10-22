@@ -7,8 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import BoardView from "./pages/BoardView";
 import { loginUser, registerUser, fetchTasks, createNewTask, updateTaskById, deleteTaskById } from "./services/api";
 
-
-
+import CalendarView from './pages/CalendarView';
 //const API_URL = "http://localhost:8080";
 
 
@@ -386,6 +385,8 @@ async function handleCreateTask(event) {
             handleStatusChange={handleStatusChange} 
             handleDeleteTask={handleDeleteTask} 
           />
+        ) : activePage === "Calendar" ? (
+          <CalendarView tasks={tasks} />
         ) : (
           <section className="coming-soon-panel">
             <div className="coming-soon-icon">✦</div>
@@ -414,5 +415,4 @@ async function handleCreateTask(event) {
     </div>
   );
 }
-
 export default App;

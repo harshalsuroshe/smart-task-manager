@@ -4,8 +4,8 @@ import React from "react";
 const NAV_ITEMS = [
   { label: "Dashboard", icon: "⌂", group: "WORKSPACE" },
   { label: "My Tasks", icon: "▤", group: "WORKSPACE" },
-  { label: "Calendar", icon: "▦", group: "WORKSPACE", upcoming: true },
-  { label: "Board View", icon: "▥", group: "WORKSPACE", upcoming: true },
+  { label: "Calendar", icon: "▦", group: "WORKSPACE" },
+  { label: "Board View", icon: "▥", group: "WORKSPACE" },
   { label: "Projects", icon: "▣", group: "WORKSPACE", upcoming: true },
   { label: "Reports", icon: "▧", group: "INSIGHTS", upcoming: true },
   { label: "Settings", icon: "⚙", group: "PERSONAL", upcoming: true },
@@ -58,11 +58,6 @@ export default function Sidebar({ activePage, onNavigate, onLogout }) {
       </nav>
       
       <div className="sidebar-bottom">
-        <div className="help-card">
-          <div className="help-icon">✦</div>
-          <strong>Stay organized</strong>
-          <p>Small steps lead to big results.</p>
-        </div>
         <button className="sidebar-logout" type="button" onClick={onLogout}>
           <span className="nav-icon">↪</span>
           Sign out
